@@ -57,9 +57,9 @@ func (h *Handler) GetAccount(c echo.Context) error {
 
 	account, ok := h.accounts[name]
 
-	if !ok {
-		h.guard.Unlock()
+	h.guard.Unlock()
 
+	if !ok {
 		return c.String(http.StatusNotFound, "account not found")
 	}
 

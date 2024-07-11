@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+option go_package = "awesomeProject/proto";
+
+package proto;
+
+service Bank {
+    rpc GetAccount(GetAccountRequest) returns (GetAccountResponse) {}
+    rpc CreateAccount(CreateAccountRequest) returns (Empty) {}
+    rpc PatchAccount(PatchAccountRequest) returns (Empty) {}
+    rpc ChangeAccount(ChangeAccountRequest) returns (Empty) {}
+    rpc DeleteAccount(DeleteAccountRequest) returns (Empty) {}
+}
+
+message GetAccountRequest {
+    string Name = 1;
+}
+
+message CreateAccountRequest {
+    string Name = 1;
+    int32 Amount = 2;
+}
+
+message PatchAccountRequest {
+    string Name = 1;
+    int32 Amount = 2;
+}
+
+message ChangeAccountRequest {
+    string Name = 1;
+    string New_name = 2;
+}
+
+message DeleteAccountRequest {
+    string Name = 1;
+}
+
+message GetAccountResponse {
+    string Name = 1;
+    int32 Amount = 2;
+}
+
+message Empty {
+
+}
