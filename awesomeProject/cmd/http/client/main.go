@@ -11,11 +11,11 @@ import (
 )
 
 type Command struct {
-	Port   	int
-	Host   	string
-	Cmd    	string
-	Name   	string
-	Amount 	int
+	Port    int
+	Host    string
+	Cmd     string
+	Name    string
+	Amount  int
 	NewName string
 }
 
@@ -149,8 +149,8 @@ func (cmd *Command) create() error {
 
 func (cmd *Command) delete() error {
 	req, err := http.NewRequest("DELETE",
-								fmt.Sprintf("http://%s:%d/account/delete?name=%s", cmd.Host, cmd.Port, cmd.Name),
-								nil)
+		fmt.Sprintf("http://%s:%d/account/delete?name=%s", cmd.Host, cmd.Port, cmd.Name),
+		nil)
 	if err != nil {
 		return fmt.Errorf("request create failed: %w", err)
 	}
@@ -189,8 +189,8 @@ func (cmd *Command) patchAmount() error {
 	}
 
 	req, err := http.NewRequest("PATCH",
-								fmt.Sprintf("http://%s:%d/account/ballance/change", cmd.Host, cmd.Port),
-								bytes.NewReader(data))
+		fmt.Sprintf("http://%s:%d/account/ballance/change", cmd.Host, cmd.Port),
+		bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("request create failed: %w", err)
 	}
@@ -221,7 +221,7 @@ func (cmd *Command) patchAmount() error {
 
 func (cmd *Command) patchName() error {
 	request := dto.ChangeAccountRequest{
-		Name:   cmd.Name,
+		Name:    cmd.Name,
 		NewName: cmd.NewName,
 	}
 
@@ -231,8 +231,8 @@ func (cmd *Command) patchName() error {
 	}
 
 	req, err := http.NewRequest("PATCH",
-								fmt.Sprintf("http://%s:%d/account/name/change", cmd.Host, cmd.Port),
-								bytes.NewReader(data))
+		fmt.Sprintf("http://%s:%d/account/name/change", cmd.Host, cmd.Port),
+		bytes.NewReader(data))
 	if err != nil {
 		return fmt.Errorf("request create failed: %w", err)
 	}
