@@ -23,3 +23,15 @@ func TestAccountSnapshotReturnsCopy(t *testing.T) {
 		t.Fatalf("stored amount = %d, want 50", got)
 	}
 }
+
+func TestAccountSnapshotReportsMissingAccount(t *testing.T) {
+	handler := New()
+
+	account, ok := handler.accountSnapshot("missing")
+	if ok {
+		t.Fatal("accountSnapshot() found a missing account")
+	}
+	if account != (models.Account{}) {
+		t.Fatalf("accountSnapshot() = %+v, want zero account", account)
+	}
+}
