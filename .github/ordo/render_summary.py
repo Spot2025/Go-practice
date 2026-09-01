@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -79,6 +80,7 @@ def render_summary(
     repository: str | None = None,
     sha: str | None = None,
     source_prefix: str | None = None,
+    pull_request: int | str | None = None,
 ) -> str:
     """Render a validated Ordo report as Markdown, including a final newline."""
 
@@ -121,13 +123,15 @@ def render_summary(
             for function in functions:
                 name = _inline_code(display_name(function["id"]))
                 location = _render_location(
-                    function, repository, sha, source_prefix
+                    function, repository, sha, source_prefix, pull_request
                 )
                 lines.append(f"- {name} — {location}")
                 full_ids.append((order, function["id"]))
         else:
             function = functions[0]
-            location = _render_location(function, repository, sha, source_prefix)
+            location = _render_location(
+                function, repository, sha, source_prefix, pull_request
+            )
             lines.append(f"## {order} · {location}")
             lines.append("")
             lines.append(_inline_code(display_name(function["id"])))
@@ -146,6 +150,7 @@ def _render_location(
     repository: str | None,
     sha: str | None,
     source_prefix: str | None,
+    pull_request: int | str | None,
 ) -> str:
     file_name = function["file"]
     line = function["line"]
@@ -161,9 +166,22 @@ def _render_location(
         if prefix_is_safe
         else None
     )
-    if source_url is None:
-        return location_markdown
-    return f"[{location_markdown}]({source_url})"
+    diff_url = (
+        _pull_request_diff_url(
+            repository, pull_request, repository_path, line
+        )
+        if prefix_is_safe
+        else None
+    )
+
+    if diff_url is not None:
+        diff_location = f"[{location_markdown}]({diff_url})"
+        if source_url is not None:
+            return f"{diff_location} ([source]({source_url}))"
+        return diff_location
+    if source_url is not None:
+        return f"[{location_markdown}]({source_url})"
+    return location_markdown
 
 
 def _repository_path(file_name: str, source_prefix: str | None) -> tuple[str, bool]:
@@ -203,11 +221,7 @@ def _source_url(
         return None
     if not sha or not _COMMIT_SHA_RE.fullmatch(sha):
         return None
-    if not file_name or file_name.startswith(("/", "\\")):
-        return None
-    if "\x00" in file_name or "\n" in file_name or "\r" in file_name:
-        return None
-    if any(component in {"", ".", ".."} for component in file_name.split("/")):
+    if not _is_safe_repository_path(file_name):
         return None
 
     encoded_path = quote(file_name, safe="/-._~")
@@ -215,6 +229,47 @@ def _source_url(
     if line > 0:
         url += f"#L{line}"
     return url
+
+
+def _pull_request_diff_url(
+    repository: str | None,
+    pull_request: int | str | None,
+    file_name: str,
+    line: int,
+) -> str | None:
+    if not repository or not _REPOSITORY_RE.fullmatch(repository):
+        return None
+    pull_request_number = _normalize_pull_request(pull_request)
+    if pull_request_number is None or line <= 0:
+        return None
+    if not _is_safe_repository_path(file_name):
+        return None
+
+    path_hash = hashlib.sha256(file_name.encode("utf-8")).hexdigest()
+    return (
+        f"https://github.com/{repository}/pull/{pull_request_number}/files"
+        f"#diff-{path_hash}R{line}"
+    )
+
+
+def _normalize_pull_request(pull_request: int | str | None) -> str | None:
+    if isinstance(pull_request, bool) or pull_request is None:
+        return None
+    if isinstance(pull_request, int):
+        return str(pull_request) if pull_request > 0 else None
+    if isinstance(pull_request, str) and re.fullmatch(r"[1-9][0-9]*", pull_request):
+        return pull_request
+    return None
+
+
+def _is_safe_repository_path(file_name: str) -> bool:
+    if not file_name or file_name.startswith(("/", "\\")):
+        return False
+    if "\x00" in file_name or "\n" in file_name or "\r" in file_name:
+        return False
+    return not any(
+        component in {"", ".", ".."} for component in file_name.split("/")
+    )
 
 
 def _inline_code(value: str) -> str:
@@ -298,6 +353,12 @@ def _parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--source-prefix",
         help="repository-relative prefix for paths emitted from a module subdirectory",
     )
+    parser.add_argument(
+        "--pull-request",
+        default=os.environ.get("PULL_REQUEST_NUMBER"),
+        metavar="NUMBER",
+        help="pull request number for diff links (default: PULL_REQUEST_NUMBER)",
+    )
     return parser.parse_args(argv)
 
 
@@ -306,7 +367,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         report = load_report(args.report)
         markdown = render_summary(
-            report, args.repository, args.sha, args.source_prefix
+            report,
+            args.repository,
+            args.sha,
+            args.source_prefix,
+            args.pull_request,
         )
     except ReportError as error:
         print(f"render_summary.py: error: {error}", file=sys.stderr)
