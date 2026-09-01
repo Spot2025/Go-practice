@@ -11,7 +11,7 @@ permissions:
   contents: read
 
 env:
-  ORDO_PATH: awesomeProject
+  ORDO_PATH: .
   ORDO_VERSION: latest
 
 jobs:
@@ -129,6 +129,7 @@ jobs:
       - name: Render review path
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
           SOURCE_PREFIX: ${{ steps.analyze.outputs.source_prefix }}
         run: |
           python3 tooling/.github/ordo/render_summary.py \
