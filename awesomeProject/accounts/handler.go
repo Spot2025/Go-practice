@@ -53,11 +53,7 @@ func (h *Handler) CreateAccount(c echo.Context) error {
 func (h *Handler) GetAccount(c echo.Context) error {
 	name := c.QueryParams().Get("name")
 
-	h.guard.Lock()
-
-	account, ok := h.accounts[name]
-
-	h.guard.Unlock()
+	account, ok := h.accountSnapshot(name)
 
 	if !ok {
 		return c.String(http.StatusNotFound, "account not found")
