@@ -10,6 +10,7 @@ service Bank {
     rpc PatchAccount(PatchAccountRequest) returns (Empty) {}
     rpc ChangeAccount(ChangeAccountRequest) returns (Empty) {}
     rpc DeleteAccount(DeleteAccountRequest) returns (Empty) {}
+    rpc Transfer(TransferRequest) returns (TransferResponse) {}
 }
 
 message GetAccountRequest {
@@ -38,6 +39,18 @@ message DeleteAccountRequest {
 message GetAccountResponse {
     string Name = 1;
     int32 Amount = 2;
+}
+
+message TransferRequest {
+    string Sender_name = 1;
+    string Receiver_name = 2;
+    int64 Amount = 3;
+}
+
+message TransferResponse {
+    int64 Fee = 1;
+    int64 Sender_balance = 2;
+    int64 Receiver_balance = 3;
 }
 
 message Empty {

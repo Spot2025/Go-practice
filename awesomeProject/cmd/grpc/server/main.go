@@ -1,10 +1,12 @@
 package main
 
 import (
+	"awesomeProject/accounts"
 	"awesomeProject/accounts/models"
 	"awesomeProject/proto"
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"net"
 
@@ -16,14 +18,15 @@ import (
 
 type server struct {
 	proto.UnimplementedBankServer
-	db *sql.DB
+	db              *sql.DB
+	transferHandler *accounts.TransferHandler
 }
 
 func (s *server) GetAccountFromStorage(Name string) (models.Account, error) {
 	row := s.db.QueryRow("SELECT name, amount FROM accounts WHERE name=$1", Name)
 	response := models.Account{}
 	err := row.Scan(&response.Name, &response.Amount)
-	
+
 	return response, err
 }
 
@@ -76,7 +79,7 @@ func (s *server) GetAccount(ctx context.Context, req *proto.GetAccountRequest) (
 	}
 
 	response := proto.GetAccountResponse{
-		Name: account.Name,
+		Name:   account.Name,
 		Amount: int32(account.Amount),
 	}
 
@@ -103,8 +106,6 @@ func (s *server) PatchAccount(ctx context.Context, req *proto.PatchAccountReques
 		return nil, status.Error(codes.InvalidArgument, "empty name")
 	}
 
-	
-
 	if _, err := s.GetAccountFromStorage(req.Name); err != nil {
 		return nil, status.Error(codes.NotFound, "account not found")
 	}
@@ -128,7 +129,7 @@ func (s *server) ChangeAccount(ctx context.Context, req *proto.ChangeAccountRequ
 
 	if _, err := s.GetAccountFromStorage(req.Name); err != nil {
 		return nil, status.Error(codes.NotFound, "account not found")
-	} 
+	}
 	if _, err := s.GetAccountFromStorage(req.NewName); err == nil {
 		return nil, status.Error(codes.AlreadyExists, "account with this name already exists")
 	}
@@ -141,9 +142,46 @@ func (s *server) ChangeAccount(ctx context.Context, req *proto.ChangeAccountRequ
 	return &proto.Empty{}, nil
 }
 
+func (s *server) Transfer(ctx context.Context, req *proto.TransferRequest) (*proto.TransferResponse, error) {
+	result, err := s.transferHandler.HandleTransfer(ctx, accounts.TransferRequest{
+		SenderID:   req.SenderName,
+		ReceiverID: req.ReceiverName,
+		Amount:     req.Amount,
+	})
+	if err != nil {
+		return nil, mapTransferError(err)
+	}
+
+	return &proto.TransferResponse{
+		Fee:             result.Fee,
+		SenderBalance:   result.SenderBalance,
+		ReceiverBalance: result.ReceiverBalance,
+	}, nil
+}
+
+func mapTransferError(err error) error {
+	switch {
+	case errors.Is(err, accounts.ErrSenderRequired),
+		errors.Is(err, accounts.ErrReceiverRequired),
+		errors.Is(err, accounts.ErrInvalidTransferAmount),
+		errors.Is(err, accounts.ErrSameTransferAccount):
+		return status.Error(codes.InvalidArgument, err.Error())
+	case errors.Is(err, accounts.ErrTransferAccountNotFound):
+		return status.Error(codes.NotFound, err.Error())
+	case errors.Is(err, accounts.ErrInsufficientFunds):
+		return status.Error(codes.FailedPrecondition, err.Error())
+	case errors.Is(err, accounts.ErrReceiverBalanceOverflow):
+		return status.Error(codes.OutOfRange, err.Error())
+	case errors.Is(err, accounts.ErrConcurrentTransfer):
+		return status.Error(codes.Aborted, err.Error())
+	default:
+		return status.Error(codes.Internal, "transfer failed")
+	}
+}
+
 func main() {
 	connectionString := "host=0.0.0.0 port=5432 dbname=postgres user=postgres password=password"
-	
+
 	db, err := sql.Open("pgx", connectionString)
 	if err != nil {
 		panic(err)
@@ -157,7 +195,12 @@ func main() {
 	}
 
 	s := grpc.NewServer()
-	proto.RegisterBankServer(s, &server{db: db})
+	transferRepository := accounts.NewPostgresTransferRepository(db)
+	transferPublisher := &accounts.MemoryTransferPublisher{}
+	proto.RegisterBankServer(s, &server{
+		db:              db,
+		transferHandler: accounts.NewTransferHandler(transferRepository, transferPublisher),
+	})
 	if err := s.Serve(lis); err != nil {
 		panic(err)
 	}

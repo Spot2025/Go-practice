@@ -3,9 +3,9 @@ package accounts
 import (
 	"awesomeProject/accounts/dto"
 	"awesomeProject/accounts/models"
+	"github.com/labstack/echo/v4"
 	"net/http"
 	"sync"
-	"github.com/labstack/echo/v4"
 )
 
 func New() *Handler {
@@ -86,7 +86,7 @@ func (h *Handler) DeleteAccount(c echo.Context) error {
 	}
 
 	delete(h.accounts, name)
-	
+
 	h.guard.Unlock()
 
 	return c.NoContent(http.StatusOK)

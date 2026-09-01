@@ -12,11 +12,11 @@ import (
 )
 
 type Command struct {
-	Port   	int
-	Host   	string
-	Cmd    	string
-	Name   	string
-	Amount 	int
+	Port    int
+	Host    string
+	Cmd     string
+	Name    string
+	Amount  int
 	NewName string
 }
 
@@ -40,7 +40,7 @@ func main() {
 	}
 
 	conn, err := grpc.NewClient(fmt.Sprintf("%s:%d", cmd.Host, cmd.Port),
-								grpc.WithTransportCredentials(insecure.NewCredentials()))
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
 		panic(err)
 	}
@@ -57,7 +57,7 @@ func main() {
 	switch cmd.Cmd {
 	case "create":
 		_, err := c.CreateAccount(ctx, &proto.CreateAccountRequest{
-			Name: cmd.Name,
+			Name:   cmd.Name,
 			Amount: int32(cmd.Amount),
 		})
 		if err != nil {
@@ -81,7 +81,7 @@ func main() {
 		}
 	case "patch_amount":
 		_, err := c.PatchAccount(ctx, &proto.PatchAccountRequest{
-			Name: cmd.Name,
+			Name:   cmd.Name,
 			Amount: int32(cmd.Amount),
 		})
 		if err != nil {
@@ -89,7 +89,7 @@ func main() {
 		}
 	case "patch_name":
 		_, err := c.ChangeAccount(ctx, &proto.ChangeAccountRequest{
-			Name: cmd.Name,
+			Name:    cmd.Name,
 			NewName: cmd.NewName,
 		})
 		if err != nil {
@@ -98,4 +98,4 @@ func main() {
 	default:
 		fmt.Printf("unknown command %s", cmd.Cmd)
 	}
-}	
+}
