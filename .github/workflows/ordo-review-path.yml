@@ -22,6 +22,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: Spot2025/ordo-action@098dafaf6354eb0782d2ea79d62e1bf34fb769e6
+      - uses: Spot2025/ordo-action@v1
         with:
           path: awesomeProject
