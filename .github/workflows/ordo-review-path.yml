@@ -6,135 +6,22 @@ on:
       - opened
       - synchronize
       - reopened
+      - ready_for_review
 
 permissions:
   contents: read
 
-env:
-  ORDO_PATH: awesomeProject
-  ORDO_VERSION: latest
+concurrency:
+  group: ordo-review-path-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   review-path:
+    if: ${{ github.event.pull_request.draft == false }}
     name: Ordo — Review Path
     runs-on: ubuntu-latest
 
     steps:
-      - name: Check out pull request head
-        uses: actions/checkout@v7
+      - uses: Spot2025/ordo-action@v1
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0
-          path: source
-          persist-credentials: false
-
-      # Load the renderer from the trusted base commit. The pull request may
-      # change its own copy, but this job must not execute code from the PR.
-      - name: Check out trusted renderer
-        uses: actions/checkout@v7
-        with:
-          ref: ${{ github.event.pull_request.base.sha }}
-          fetch-depth: 1
-          path: tooling
-          persist-credentials: false
-          sparse-checkout: .github/ordo/render_summary.py
-          sparse-checkout-cone-mode: false
-
-      - name: Fetch base branch
-        working-directory: source
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-        run: |
-          git fetch --no-tags origin -- \
-            "+refs/heads/${BASE_REF}:refs/remotes/origin/${BASE_REF}"
-
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version: '1.25.x'
-          cache: false
-
-      - name: Install Ordo
-        env:
-          GOBIN: ${{ runner.temp }}/ordo-bin
-        run: go install "github.com/Spot2025/ordo/cmd/ordo@${ORDO_VERSION}"
-
-      - name: Analyze pull request
-        id: analyze
-        working-directory: source
-        env:
-          BASE_REF: ${{ github.event.pull_request.base.ref }}
-          ORDO_BIN: ${{ runner.temp }}/ordo-bin/ordo
-        run: |
-          write_failure_summary() {
-            {
-              printf '# Ordo — Review Path\n\n'
-              printf 'Ordo could not analyze this pull request.\n\n'
-              printf 'See the workflow logs for details.\n'
-            } >> "${GITHUB_STEP_SUMMARY}"
-          }
-
-          invalid_ordo_path() {
-            printf 'Invalid ORDO_PATH %q: %s\n' "${ORDO_PATH}" "$1" >&2
-            write_failure_summary
-            exit 1
-          }
-
-          if [[ "${ORDO_PATH}" == *$'\n'* || "${ORDO_PATH}" == *$'\r'* ]]; then
-            invalid_ordo_path 'line breaks are not allowed'
-          fi
-
-          source_root=$(pwd -P)
-          if [[ ! -d "${ORDO_PATH}" ]]; then
-            invalid_ordo_path 'expected an existing directory inside the pull request checkout'
-          fi
-
-          if ! module_root=$(cd -- "${ORDO_PATH}" && pwd -P); then
-            invalid_ordo_path 'could not resolve the directory'
-          fi
-
-          case "${module_root}" in
-            "${source_root}")
-              source_prefix=''
-              ;;
-            "${source_root}"/*)
-              source_prefix=${module_root#"${source_root}"/}
-              ;;
-            *)
-              invalid_ordo_path 'resolved path is outside the pull request checkout'
-              ;;
-          esac
-
-          if [[ "${source_prefix}" == *$'\n'* || "${source_prefix}" == *$'\r'* ]]; then
-            invalid_ordo_path 'resolved path contains a line break'
-          fi
-
-          printf 'source_prefix=%s\n' "${source_prefix}" >> "${GITHUB_OUTPUT}"
-          cd -- "${module_root}"
-
-          status=0
-          "${ORDO_BIN}" \
-            --diff \
-            --diff-base "origin/${BASE_REF}" \
-            --format json \
-            "./..." \
-            > "${RUNNER_TEMP}/ordo.json" || status=$?
-
-          if (( status != 0 )); then
-            write_failure_summary
-          fi
-
-          exit "${status}"
-
-      - name: Render review path
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
-          SOURCE_PREFIX: ${{ steps.analyze.outputs.source_prefix }}
-        run: |
-          python3 tooling/.github/ordo/render_summary.py \
-            "${RUNNER_TEMP}/ordo.json" \
-            --repository "${GITHUB_REPOSITORY}" \
-            --sha "${HEAD_SHA}" \
-            "--source-prefix=${SOURCE_PREFIX}" \
-            >> "${GITHUB_STEP_SUMMARY}"
+          path: awesomeProject
